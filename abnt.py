@@ -362,6 +362,30 @@ def _ensure_intro_section_and_get_start_index(doc: Document, intro_terms=("intro
     return max(0, len(doc.sections) - 1)
 
 # =====================
+# Redefinição compatível: numeração com suporte a start_from_section
+# =====================
+
+def add_page_number_to_footer(doc: Document, position="right", start_from_section: int = 0):
+    """Adiciona campo PAGE ao rodapé a partir do índice de seção informado.
+    Compatível com chamadas antigas (sem o parâmetro). Seções anteriores ficam sem exibição do número.
+    """
+    for i, section in enumerate(doc.sections):
+        if i < start_from_section:
+            continue
+        footer = section.footer
+        para = footer.add_paragraph() if len(footer.paragraphs) == 0 else footer.paragraphs[0]
+        para.alignment = {
+            "center": WD_ALIGN_PARAGRAPH.CENTER,
+            "left": WD_ALIGN_PARAGRAPH.LEFT
+        }.get(position, WD_ALIGN_PARAGRAPH.RIGHT)
+        run = para.add_run()
+        fld_begin = OxmlElement('w:fldChar'); fld_begin.set(qn('w:fldCharType'), 'begin')
+        instr_text = OxmlElement('w:instrText'); instr_text.set(qn('xml:space'), 'preserve'); instr_text.text = ' PAGE '
+        fld_separate = OxmlElement('w:fldChar'); fld_separate.set(qn('w:fldCharType'), 'separate')
+        fld_end = OxmlElement('w:fldChar'); fld_end.set(qn('w:fldCharType'), 'end')
+        run._r.append(fld_begin); run._r.append(instr_text); run._r.append(fld_separate); run._r.append(fld_end)
+
+# =====================
 # Streamlit UI
 # =====================
 
@@ -983,5 +1007,6 @@ else:
         st.code(format_reference_site(sb if sb else None, ini if ini else None, titulo, site, url, acesso, ano if ano else None))
 
 st.caption("💡 Dica: mantenha títulos como Heading 1/2/3 no Word; use marcadores para citações longas e referências; revise manualmente capas/sumários.")
+
 
 
