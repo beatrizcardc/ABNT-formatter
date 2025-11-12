@@ -54,6 +54,22 @@ def configure_default_style(doc: Document, font_name="Times New Roman", font_siz
 
 
 def style_all_paragraphs(doc: Document, justify=True, first_line_indent_cm=1.25):
+    """Aplica estilo base ABNT a todos os parágrafos que não são headings.
+    - Headings: esquerda, sem recuo, sem espaçamentos extras
+    - Corpo: justificado (opcional), 1,5, recuo de 1ª linha
+    """
+    for p in doc.paragraphs:
+        if p.style and p.style.name.lower().startswith("heading"):
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.first_line_indent = Cm(0)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0)
+        else:
+            if justify:
+                p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            p.paragraph_format.first_line_indent = Cm(first_line_indent_cm)
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(0):
     for p in doc.paragraphs:
         text = p.text.strip()
         # Headings: alinhar à esquerda, sem recuo
@@ -194,7 +210,6 @@ def process_long_quote_markers(doc: Document) -> int:
 # Opção 1: marcar bloco de referências com [[REFERENCIAS]] ... [[/REFERENCIAS]] para aplicar recuo francês
 # Opção 2: utilizar gerador de referência por tipo (Livro, Artigo, Site)
 
-
 def apply_references_block_format(doc: Document, first_line_hanging_cm=1.25, line_spacing=1.0, space_between_pts=6):
     in_refs = False
     count = 0
@@ -216,22 +231,57 @@ def apply_references_block_format(doc: Document, first_line_hanging_cm=1.25, lin
             count += 1
     return count
 
-
 def format_reference_livro(autor_sobrenome: str, autor_iniciais: str, titulo: str, ed: Optional[str], local: str, editora: str, ano: str):
-    # SOBRENOME, Iniciais. Título: subtítulo. ed. Local: Editora, ano.
     ed_str = f" {ed}." if ed else "."
     return f"{autor_sobrenome.upper()}, {autor_iniciais}. {titulo}.{ed_str} {local}: {editora}, {ano}."
-
 
 def format_reference_artigo(autor_sobrenome: str, autor_iniciais: str, titulo: str, periodico: str, volume: str, numero: Optional[str], paginas: str, ano: str):
     num = f"({numero})" if numero else ""
     return f"{autor_sobrenome.upper()}, {autor_iniciais}. {titulo}. {periodico}, v. {volume} {num}, p. {paginas}, {ano}."
 
-
 def format_reference_site(autor_sobrenome: Optional[str], autor_iniciais: Optional[str], titulo: str, site: str, url: str, acesso_data: str, ano: Optional[str]=None):
     autor = f"{autor_sobrenome.upper()}, {autor_iniciais}. " if (autor_sobrenome and autor_iniciais) else ""
     ano_str = f" {ano}." if ano else "."
     return f"{autor}{titulo}. {site}. Disponível em: <{url}>. Acesso em: {acesso_data}.{ano_str}"
+
+# ----------
+# CAPA/FOLHA DE ROSTO (centralização via marcadores) e LISTAS (bullets) – ABNT
+# ----------
+
+def center_block_by_markers(doc: Document, start_marker: str, end_marker: str) -> int:
+    in_block = False
+    count = 0
+    for p in doc.paragraphs:
+        t = p.text
+        if start_marker in t:
+            in_block = True
+            p.text = t.replace(start_marker, '')
+        elif end_marker in t:
+            in_block = False
+            p.text = t.replace(end_marker, '')
+        if in_block or end_marker in t:
+            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            pf = p.paragraph_format
+            pf.first_line_indent = Cm(0)
+            pf.left_indent = Cm(0)
+            pf.right_indent = Cm(0)
+            pf.line_spacing = 1.5
+            count += 1
+    return count
+
+def is_list_paragraph(p) -> bool:
+    return bool(p._p.xpath('.//w:numPr'))
+
+def normalize_lists_abnt(doc: Document, left_indent_cm=1.25, hanging_cm=1.25, line_spacing=1.5):
+    for p in doc.paragraphs:
+        if is_list_paragraph(p):
+            pf = p.paragraph_format
+            pf.left_indent = Cm(left_indent_cm)
+            pf.first_line_indent = Cm(-hanging_cm)
+            pf.line_spacing = line_spacing
+            pf.space_before = Pt(0)
+            pf.space_after = Pt(0)
+            p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 # ----------
 # Figuras (centralizar e legenda abaixo) e Tabelas (título acima, fonte abaixo)
@@ -305,7 +355,9 @@ def apply_abnt_formatting(doc: Document,
                           auto_captions_fig=True,
                           auto_captions_tab=True,
                           format_refs_block=True,
-                          page_numbers_from_intro=False):
+                          page_numbers_from_intro=False,
+                          center_cover_blocks=True,
+                          normalize_bullets=True):
     set_page_margins(doc)
     configure_default_style(doc, line_spacing=1.5, first_line_indent_cm=first_line_indent_cm)
     style_all_paragraphs(doc, justify=justify, first_line_indent_cm=first_line_indent_cm)
@@ -1005,6 +1057,9 @@ else:
         ano = st.text_input("Ano (opcional)", "")
     if st.button("Gerar referência (Site)"):
         st.code(format_reference_site(sb if sb else None, ini if ini else None, titulo, site, url, acesso, ano if ano else None))
+
+st.caption("💡 Dica: mantenha títulos como Heading 1/2/3 no Word; use marcadores para citações longas e referências; revise manualmente capas/sumários.")
+
 
 st.caption("💡 Dica: mantenha títulos como Heading 1/2/3 no Word; use marcadores para citações longas e referências; revise manualmente capas/sumários.")
 
