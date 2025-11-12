@@ -69,7 +69,7 @@ def style_all_paragraphs(doc: Document, justify=True, first_line_indent_cm=1.25)
                 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             p.paragraph_format.first_line_indent = Cm(first_line_indent_cm)
             p.paragraph_format.space_before = Pt(0)
-            p.paragraph_format.space_after = Pt(0):
+            p.paragraph_format.space_after = Pt(0)
     for p in doc.paragraphs:
         text = p.text.strip()
         # Headings: alinhar à esquerda, sem recuo
