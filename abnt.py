@@ -305,7 +305,8 @@ def apply_abnt_formatting(doc: Document,
                           center_images=True,
                           auto_captions_fig=True,
                           auto_captions_tab=True,
-                          format_refs_block=True):
+                          format_refs_block=True,
+                          page_numbers_from_intro=False):
     set_page_margins(doc)
     configure_default_style(doc, line_spacing=1.5, first_line_indent_cm=first_line_indent_cm)
     style_all_paragraphs(doc, justify=justify, first_line_indent_cm=first_line_indent_cm)
@@ -328,10 +329,38 @@ def apply_abnt_formatting(doc: Document,
         apply_references_block_format(doc)
 
     if footer_page_numbers:
-        add_page_number_to_footer(doc)
+        if page_numbers_from_intro:
+            start_idx = _ensure_intro_section_and_get_start_index(doc)
+            start_idx = 0 if start_idx == -1 else start_idx
+            add_page_number_to_footer(doc, start_from_section=start_idx)
+        else:
+            add_page_number_to_footer(doc)
 
     remove_extra_blank_lines(doc)
     return doc
+
+# =====================
+# Funções para numeração a partir da Introdução
+# =====================
+
+def _insert_section_break_before_paragraph(paragraph) -> None:
+    pPr = paragraph._p.get_or_add_pPr()
+    sectPr = OxmlElement('w:sectPr')
+    type_el = OxmlElement('w:type'); type_el.set(qn('w:val'), 'nextPage')
+    sectPr.append(type_el)
+    pPr.append(sectPr)
+
+
+def _ensure_intro_section_and_get_start_index(doc: Document, intro_terms=("introdução","introducao")) -> int:
+    intro_p = None
+    for p in doc.paragraphs:
+        if p.text and p.text.strip().lower() in intro_terms:
+            intro_p = p
+            break
+    if intro_p is None:
+        return -1
+    _insert_section_break_before_paragraph(intro_p)
+    return max(0, len(doc.sections) - 1)
 
 # =====================
 # Streamlit UI
@@ -350,6 +379,7 @@ with st.expander("⚙️ Opções de formatação", expanded=True):
         do_h3 = st.checkbox("TÍTULOS NÍVEL 3 EM CAIXA ALTA", value=True)
         do_justify = st.checkbox("Justificar parágrafos", value=True)
         first_indent = st.number_input("Recuo da 1ª linha (cm)", min_value=0.0, max_value=3.0, value=1.25, step=0.25)
+        from_intro = st.checkbox("Exibir número de página apenas a partir da INTRODUÇÃO (ABNT)", value=True)
     with col2:
         do_pagenum = st.checkbox("Inserir número de página no rodapé (direita)", value=True)
         center_imgs = st.checkbox("Centralizar imagens (parágrafos com figuras)", value=True)
@@ -389,6 +419,7 @@ if uploaded is not None:
                 auto_captions_fig=auto_fig,
                 auto_captions_tab=auto_tab,
                 format_refs_block=refs_block,
+                page_numbers_from_intro=from_intro,
             )
             out = io.BytesIO(); formatted.save(out); out.seek(0)
             base_name = uploaded.name.replace('.docx', '').replace('.DOCX', '')
@@ -803,7 +834,12 @@ def apply_abnt_formatting(doc: Document,
         apply_references_block_format(doc)
 
     if footer_page_numbers:
-        add_page_number_to_footer(doc)
+        if page_numbers_from_intro:
+            start_idx = _ensure_intro_section_and_get_start_index(doc)
+            start_idx = 0 if start_idx == -1 else start_idx
+            add_page_number_to_footer(doc, start_from_section=start_idx)
+        else:
+            add_page_number_to_footer(doc)
 
     remove_extra_blank_lines(doc)
     return doc
@@ -948,3 +984,4 @@ else:
         st.code(format_reference_site(sb if sb else None, ini if ini else None, titulo, site, url, acesso, ano if ano else None))
 
 st.caption("💡 Dica: mantenha títulos como Heading 1/2/3 no Word; use marcadores para citações longas e referências; revise manualmente capas/sumários.")
+
