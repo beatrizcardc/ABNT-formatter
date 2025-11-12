@@ -238,12 +238,21 @@ def format_reference_site(autor_sobrenome: Optional[str], autor_iniciais: Option
 # ----------
 
 
-def add_caption_after_paragraph(p, text: str, italic=False):
-    cap = p.insert_paragraph_after(text)
+def add_caption_after_paragraph(doc: Document, p, text: str, italic=False):
+    """Insere um novo parágrafo LOGO APÓS `p` via OXML e retorna o Paragraph criado."""
+    new_p_el = OxmlElement('w:p')
+    p._p.addnext(new_p_el)
+    cap = None
+    for pp in doc.paragraphs:
+        if pp._p is new_p_el:
+            cap = pp; break
+    if cap is None:
+        return None
     cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
     cap.paragraph_format.first_line_indent = Cm(0)
-    if italic and cap.runs:
-        cap.runs[0].italic = True
+    r = cap.add_run(text)
+    if italic:
+        r.italic = True
     return cap
 
 
@@ -255,36 +264,26 @@ def ensure_captions(doc: Document, add_fig_captions: bool, add_tab_captions: boo
         if tag.endswith('}p'):
             p = next((pp for pp in doc.paragraphs if pp._p is block), None)
             if p is not None and p._element.xpath('.//w:drawing'):
-                # imagem encontrada
                 if add_fig_captions:
                     fig_n += 1
-                    add_caption_after_paragraph(p, f"Figura {fig_n} – Descrição da figura", italic=False)
+                    add_caption_after_paragraph(doc, p, f"Figura {fig_n} – Descrição da figura", italic=False)
         elif tag.endswith('}tbl'):
-            # tabela encontrada
             tbl = next((t for t in doc.tables if t._tbl is block), None)
             if tbl is not None:
                 prevent_table_row_split_and_repeat_header(tbl)
                 if add_tab_captions:
-                    # Título acima e fonte abaixo (placeholder)
-                    # Inserir título acima
-                    first_p = doc.paragraphs[0]
-                    new_p_above = first_p._element.__class__('w:p')
+                    # título acima
+                    new_p_above = OxmlElement('w:p')
                     block.addprevious(new_p_above)
-                    p_obj_above = None
-                    for pp in doc.paragraphs:
-                        if pp._p is new_p_above:
-                            p_obj_above = pp; break
+                    p_obj_above = next((pp for pp in doc.paragraphs if pp._p is new_p_above), None)
                     if p_obj_above:
                         p_obj_above.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         p_obj_above.paragraph_format.first_line_indent = Cm(0)
                         p_obj_above.add_run(f"Tabela {tab_n+1} – Título da tabela")
-                    # Fonte abaixo
-                    new_p_below = first_p._element.__class__('w:p')
+                    # fonte abaixo
+                    new_p_below = OxmlElement('w:p')
                     block.addnext(new_p_below)
-                    p_obj_below = None
-                    for pp in doc.paragraphs:
-                        if pp._p is new_p_below:
-                            p_obj_below = pp; break
+                    p_obj_below = next((pp for pp in doc.paragraphs if pp._p is new_p_below), None)
                     if p_obj_below:
                         p_obj_below.alignment = WD_ALIGN_PARAGRAPH.LEFT
                         p_obj_below.paragraph_format.first_line_indent = Cm(0)
@@ -984,4 +983,5 @@ else:
         st.code(format_reference_site(sb if sb else None, ini if ini else None, titulo, site, url, acesso, ano if ano else None))
 
 st.caption("💡 Dica: mantenha títulos como Heading 1/2/3 no Word; use marcadores para citações longas e referências; revise manualmente capas/sumários.")
+
 
